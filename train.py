@@ -102,7 +102,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     writer = SummaryWriter(f'./summaries/{args.dataset}_{args.arch}')
-    device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda:4" if torch.cuda.is_available() else 'cpu')
 
     batch_size = args.batch_size
     learning_rate = args.learning_rate
@@ -116,7 +116,22 @@ if __name__ == '__main__':
     model_save_name = f'{args.arch}.pth'
 
     if args.arch == 'vit':
-        ann = VisionTransformer()
+        ann = VisionTransformer(
+            img_size=32,
+            patch_size=8,
+            in_chans=3,
+            class_dim=100,
+            embed_dim=252,
+            num_heads=6,
+            mlp_ratio=4,
+            qkv_bias=False,
+            qk_scale=None,
+            drop_rate=0.,
+            attn_drop_rate=0.,
+            drop_path_rate=0.,
+            norm_layer=nn.LayerNorm,
+            epsilon=1e-5
+        )
 
     print(ann)
     ann.to(device)
@@ -134,9 +149,7 @@ if __name__ == '__main__':
         running_loss = 0
         start_time = time.time()
         ann.train()
-
         for i, (images, labels) in enumerate(train_loader):
-            print(images.shape)
             optimizer.zero_grad()
             labels = labels.to(device)
             images = images.to(device)
@@ -153,6 +166,7 @@ if __name__ == '__main__':
                 print('Time elapsed: {}'.format(time.time() - start_time))
                 writer.add_scalar('Train Loss /batchidx', loss, i + len(train_loader) * epoch)
         scheduler.step()
+        writer.add_scalar('Train Loss /epoch', running_loss / len(train_loader), epoch)
 
         correct = torch.Tensor([0.]).to(device)
         total = torch.Tensor([0.]).to(device)
