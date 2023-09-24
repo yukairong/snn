@@ -94,7 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('--T', default=100, type=int, help='snn simulation length')
     parser.add_argument('--shift_snn', default=100, type=int, help='SNN left shift reference time')
     parser.add_argument('--step', default=4, type=int, help='snn step')
-    parser.add_argument('--spike', action='store_false', help='use spiking network')
+    parser.add_argument('--spike', action='store_true', help='use spiking network')
     parser.add_argument('--teacher', action='store_true', help='use teacher')
     parser.add_argument('--rp', action='store_true', help='use teacher')
     parser.add_argument('--recon', action='store_true', help='use teacher')
@@ -103,7 +103,7 @@ if __name__ == '__main__':
     parser.add_argument('--weight', type=float, default=0.1, help='weight for kd loss')
 
     args = parser.parse_args()
-
+    print(args)
     writer = SummaryWriter(f'./summaries/{args.dataset}_{args.arch}')
     device = torch.device("cuda:4" if torch.cuda.is_available() else 'cpu')
 
@@ -141,14 +141,15 @@ if __name__ == '__main__':
 
     if args.spike:
         ann = SpikeModel(ann, args.step)
+        ann.set_spike_state(True)
     print(ann)
     ann.to(device)
 
     num_epochs = 1000
     criterion = nn.CrossEntropyLoss().to(device)
 
-    parameters = split_weights(ann)
-    optimizer = torch.optim.SGD(params=parameters, lr=0.1, momentum=0.9, weight_decay=1e-4)
+    # parameters = split_weights(ann)
+    optimizer = torch.optim.SGD(params=ann.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
     # optimizer = torch.optim.AdamW(ann.parameters(), lr=0.001, weight_decay=0.009)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, eta_min=0, T_max=num_epochs)
 
