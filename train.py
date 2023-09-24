@@ -12,7 +12,10 @@ import time
 from torch.utils.data import DataLoader
 
 from tensorboardX import SummaryWriter
+from models import *
 from models.vit import VisionTransformer
+from models.resnet import resnet20_v2_cifar_modified
+from models.spike_model import SpikeModel
 from IPython import embed
 
 _seed_ = 3407
@@ -82,8 +85,8 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dataset', default='CIFAR100', type=str, help='dataset name',
                         choices=['MNIST', 'CIFAR10', 'CIFAR100'])
-    parser.add_argument('--arch', default='vit', type=str, help='model name',
-                        choices=['vit'])
+    parser.add_argument('--arch', default='res20_m2', type=str, help='model name',
+                        choices=['vit', 'res20_m2'])
     parser.add_argument('--batch_size', default=128, type=int, help='minibatch size')
     parser.add_argument('--learning_rate', default=1e-1, type=float, help='initial learning rate')
     parser.add_argument('--epochs', default=400, type=int, help='number of training epochs')
@@ -91,7 +94,7 @@ if __name__ == '__main__':
     parser.add_argument('--T', default=100, type=int, help='snn simulation length')
     parser.add_argument('--shift_snn', default=100, type=int, help='SNN left shift reference time')
     parser.add_argument('--step', default=4, type=int, help='snn step')
-    parser.add_argument('--spike', action='store_true', help='use spiking network')
+    parser.add_argument('--spike', action='store_false', help='use spiking network')
     parser.add_argument('--teacher', action='store_true', help='use teacher')
     parser.add_argument('--rp', action='store_true', help='use teacher')
     parser.add_argument('--recon', action='store_true', help='use teacher')
@@ -109,7 +112,8 @@ if __name__ == '__main__':
     activation_save_name = args.arch + '_' + args.dataset + '_activation.npy'
     use_cifar10 = args.dataset == 'CIFAR10'
 
-    train_loader, test_loader = build_data(cutout=True, use_cifar10=use_cifar10, auto_aug=True, batch_size=args.batch_size)
+    train_loader, test_loader = build_data(cutout=True, use_cifar10=use_cifar10, auto_aug=True,
+                                           batch_size=args.batch_size)
     best_acc = 0
     best_epoch = 0
 
@@ -132,13 +136,20 @@ if __name__ == '__main__':
             norm_layer=nn.LayerNorm,
             epsilon=1e-5
         )
+    elif args.arch == 'res20_m2':
+        ann = resnet20_v2_cifar_modified(num_classes=10 if use_cifar10 else 100)
 
+    if args.spike:
+        ann = SpikeModel(ann, args.step)
     print(ann)
     ann.to(device)
 
-    num_epochs = 400
+    num_epochs = 1000
     criterion = nn.CrossEntropyLoss().to(device)
-    optimizer = torch.optim.SGD(params=ann.parameters(), lr=0.1, momentum=0.9, weight_decay=1e-4)
+
+    parameters = split_weights(ann)
+    optimizer = torch.optim.SGD(params=parameters, lr=0.1, momentum=0.9, weight_decay=1e-4)
+    # optimizer = torch.optim.AdamW(ann.parameters(), lr=0.001, weight_decay=0.009)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, eta_min=0, T_max=num_epochs)
 
     correct = torch.Tensor([0.]).to(device)
@@ -162,7 +173,7 @@ if __name__ == '__main__':
             loss.backward()
             optimizer.step()
 
-            if(i + 1) % 80 == 0:
+            if (i + 1) % 80 == 0:
                 print('Time elapsed: {}'.format(time.time() - start_time))
                 writer.add_scalar('Train Loss /batchidx', loss, i + len(train_loader) * epoch)
         scheduler.step()
