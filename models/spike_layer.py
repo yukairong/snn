@@ -47,26 +47,47 @@ def gradient_scale(x, scale):
     return y
 
 
-def mem_update(bn, x_in, mem, V_th, decay, grad_scale=1., temp=1.0):
-    mem = mem * decay + x_in
+def mem_update(bn, x_in, mem, V_th, decay, grad_scale=1., temp=1.0, auto_update=None):
+    if auto_update is not None:
+        mem = torch.unsqueeze(mem, dim=-1)
+        x_in = torch.unsqueeze(x_in, dim=-1)
+
+        stack_in = torch.cat((mem, x_in), dim=-1)
+        stack_out = auto_update(stack_in)
+
+        mem = torch.squeeze(stack_out)
+    else:
+        mem = mem * decay + x_in
     # if mem.shape[1]==256:
     #    embed()
     # V_th = gradient_scale(V_th, grad_scale)
     # mem2 = MPR(mem, 0.5)
-
     mem2 = bn(mem)
-    spike = spike_activation(mem2 / V_th, temp=temp)
+    spike = spike_activation(mem2 / V_th, temp=temp)    # only 0 or 1
     mem = mem * (1 - spike)
     # mem = mem - spike
     # spike = spike * Fire_ratio
     return mem, spike
 
+class LIFUpdate(SpikeModule):
+
+    def __init__(self, num_features=None):
+        super(LIFUpdate, self).__init__()
+        self.num_features = num_features
+
+        # Initialize parameters
+        self.decay = nn.Parameter(torch.ones(2, 1))
+
+        self.register_parameter('update_params', self.decay)
+
+    def forward(self, x):
+        return torch.matmul(x, self.decay)
 
 class LIFAct(SpikeModule):
     """ Generates spikes based on LIF module. It can be considered as an activation function and is used similar to ReLU. The input tensor needs to have an additional time dimension, which in this case is on the last dimension of the data.
     """
 
-    def __init__(self, step, channel):
+    def __init__(self, step, channel, dim):
         super(LIFAct, self).__init__()
         self.step = step
         # self.V_th = nn.Parameter(torch.tensor(1.))
@@ -77,6 +98,9 @@ class LIFAct(SpikeModule):
         self.grad_scale = 0.1
 
         self.bn = nn.BatchNorm2d(channel)
+        self.out_dim = dim
+        self.ln = nn.LayerNorm([channel, dim, dim])
+        self.update = LIFUpdate()
         # nn.init.constant_(self.bn.weight, 1)
         # nn.init.constant_(self.bn.bias, 0.5)
 
@@ -89,7 +113,7 @@ class LIFAct(SpikeModule):
         out = []
         for i in range(self.step):
             u, out_i = mem_update(bn=self.bn, x_in=x[i], mem=u, V_th=self.V_th,
-                                  grad_scale=self.grad_scale, decay=0.25, temp=self.temp)
+                                  grad_scale=self.grad_scale, decay=0.25, temp=self.temp, auto_update=self.update)
             out += [out_i]
         out = torch.stack(out)
         return out
@@ -123,10 +147,10 @@ class SpikePool(SpikeModule):
         if self._spiking is not True:
             return self.pool(x)
         T, B, C, H, W = x.shape
-        out = x.reshape(-1, C, H, W)
-        out = self.pool(out)
+        out = x.reshape(-1, C, H, W)    # [512, 3, 32, 32]
+        out = self.pool(out)    # [512, 64, 32, 32]
         B_o, C_o, H_o, W_o = out.shape
-        out = out.view(T, B, C_o, H_o, W_o).contiguous()
+        out = out.view(T, B, C_o, H_o, W_o).contiguous()    # [4, 128, 64, 32, 32]
         return out
 
 

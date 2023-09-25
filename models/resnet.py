@@ -62,7 +62,7 @@ class BasicBlockv2(nn.Module):
         super(BasicBlockv2, self).__init__()
         self.inplanes = inplanes
         self.conv1 = conv3x3(inplanes, planes, stride)
-        self.bn1 = BN(inplanes)
+        self.bn1 = BN(planes)
         self.relu1 = ReLU(inplace=True)
         self.conv2 = conv3x3(planes, planes)
         self.bn2 = BN(planes)
@@ -73,7 +73,7 @@ class BasicBlockv2(nn.Module):
     def forward(self, s):
         temp, x = s
         residual = x
-        out = self.bn1(x)
+        out = self.bn1(self.inplanes)
         out = self.relu1(out)
         out = self.conv1(out)
 

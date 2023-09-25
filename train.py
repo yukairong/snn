@@ -14,7 +14,7 @@ from torch.utils.data import DataLoader
 from tensorboardX import SummaryWriter
 from models import *
 from models.vit import VisionTransformer
-from models.resnet import resnet20_v2_cifar_modified
+from models.resnet import resnet20_v2_cifar_modified, resnet20_cifar_modified
 from models.spike_model import SpikeModel
 from IPython import embed
 
@@ -29,7 +29,7 @@ torch.backends.cudnn.deterministic = True
 torch.backends.cudnn.benchmark = False
 
 
-def build_data(batch_size=128, cutout=False, workers=4, use_cifar10=False, auto_aug=False):
+def build_data(batch_size=128, cutout=False, workers=0, use_cifar10=False, auto_aug=False):
     aug = [transforms.RandomCrop(32, padding=4), transforms.RandomHorizontalFlip()]
     if auto_aug:
         aug.append(CIFAR10Policy())
@@ -85,8 +85,8 @@ if __name__ == '__main__':
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--dataset', default='CIFAR100', type=str, help='dataset name',
                         choices=['MNIST', 'CIFAR10', 'CIFAR100'])
-    parser.add_argument('--arch', default='res20_m2', type=str, help='model name',
-                        choices=['vit', 'res20_m2'])
+    parser.add_argument('--arch', default='res20_m', type=str, help='model name',
+                        choices=['vit', 'res20_m2', 'res20_m'])
     parser.add_argument('--batch_size', default=128, type=int, help='minibatch size')
     parser.add_argument('--learning_rate', default=1e-1, type=float, help='initial learning rate')
     parser.add_argument('--epochs', default=400, type=int, help='number of training epochs')
@@ -105,7 +105,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
     print(args)
     writer = SummaryWriter(f'./summaries/{args.dataset}_{args.arch}')
-    device = torch.device("cuda:4" if torch.cuda.is_available() else 'cpu')
+    device = torch.device("cuda:0" if torch.cuda.is_available() else 'cpu')
 
     batch_size = args.batch_size
     learning_rate = args.learning_rate
@@ -138,6 +138,8 @@ if __name__ == '__main__':
         )
     elif args.arch == 'res20_m2':
         ann = resnet20_v2_cifar_modified(num_classes=10 if use_cifar10 else 100)
+    elif args.arch == 'res20_m':
+        ann = resnet20_cifar_modified(num_classes=10 if use_cifar10 else 100)
 
     if args.spike:
         ann = SpikeModel(ann, args.step)

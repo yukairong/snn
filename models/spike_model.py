@@ -9,8 +9,9 @@ class SpikeModel(SpikeModule):
         super().__init__()
         self.model = model
         self.step = step
-        self.spike_module_refactor(self.model, step=step)
         self.channel = 0
+        self.out_dim = 32
+        self.spike_module_refactor(self.model, step=step)
 
     def spike_module_refactor(self, module: nn.Module, step=2):
         """
@@ -18,22 +19,26 @@ class SpikeModel(SpikeModule):
         """
         for name, child_module in module.named_children():
             if type(child_module) in specials:
-                setattr(module, name, specials[type(child_module)](child_module, step=step))
+                setattr(module, name, specials[type(child_module)](child_module, step=step, dim=self.out_dim))
 
             elif isinstance(child_module, nn.Sequential):
                 self.spike_module_refactor(child_module, step=step)
-
-            elif isinstance(child_module, nn.Conv2d):
-                setattr(module, name, SpikePool(child_module, step=step))
 
             elif isinstance(child_module, nn.Linear):
                 setattr(module, name, SpikeConv(child_module, step=step))
 
             elif isinstance(child_module, (nn.AdaptiveAvgPool2d, nn.AvgPool2d)):
                 setattr(module, name, SpikePool(child_module, step=step))
+                self.out_dim = self.out_dim // 2
 
             elif isinstance(child_module, (nn.ReLU, nn.ReLU6)):
-                setattr(module, name, LIFAct(step=step, channel=self.channel))
+                setattr(module, name, LIFAct(step=step, channel=self.channel, dim=self.out_dim))
+
+            elif isinstance(child_module, nn.Conv2d):
+                setattr(module, name, SpikePool(child_module, step=step))
+                stride = child_module.stride
+                self.out_dim = self.out_dim // stride[0]
+
             # elif isinstance(child_module, nn.BatchNorm2d):
             #    setattr(module, name, SpikeConv(child_module, step=step))
             # elif isinstance(child_module, nn.BatchNorm2d):
