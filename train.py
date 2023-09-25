@@ -16,6 +16,7 @@ from models import *
 from models.vit import VisionTransformer
 from models.resnet import resnet20_v2_cifar_modified, resnet20_cifar_modified
 from models.spike_model import SpikeModel
+from models.spike_layer import LIFUpdate
 from IPython import embed
 
 _seed_ = 3407
@@ -141,8 +142,9 @@ if __name__ == '__main__':
     elif args.arch == 'res20_m':
         ann = resnet20_cifar_modified(num_classes=10 if use_cifar10 else 100)
 
+    update = LIFUpdate()
     if args.spike:
-        ann = SpikeModel(ann, args.step)
+        ann = SpikeModel(ann, args.step, update=update)
         ann.set_spike_state(True)
     print(ann)
     ann.to(device)
@@ -181,6 +183,7 @@ if __name__ == '__main__':
                 writer.add_scalar('Train Loss /batchidx', loss, i + len(train_loader) * epoch)
         scheduler.step()
         print('Loss: {}'.format(running_loss / len(train_loader)))
+        print('lr: {}'.format(optimizer.param_groups[0]['lr']))
         writer.add_scalar('Train Loss /epoch', running_loss / len(train_loader), epoch)
 
         correct = torch.Tensor([0.]).to(device)
