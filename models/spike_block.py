@@ -10,13 +10,13 @@ class SpikeBasicBlock(SpikeModule):
     Implementation of Spike BasicBlock used in ResNet-18 and ResNet-34.
     """
 
-    def __init__(self, basic_block: BasicBlock, step=2, dim=0):
+    def __init__(self, basic_block: BasicBlock, step=2, dim=0, update=None):
         super().__init__()
         self.step = step
         self.conv1 = SpikePool(basic_block.conv1, step=step)
         # self.bn1 = tdBatchNorm2d(basic_block.bn1, alpha=1)
         self.bn1 = myBatchNorm3d(basic_block.bn1, step=step)
-        self.relu1 = LIFAct(step, basic_block.bn1.num_features, dim=dim)
+        self.relu1 = LIFAct(step, basic_block.bn1.num_features, dim=dim, update=update)
 
         self.conv2 = SpikePool(basic_block.conv2, step=step)
         # self.bn2 = tdBatchNorm2d(basic_block.bn2,alpha=1 if basic_block.downsample is None else 1/math.sqrt(2))
@@ -35,7 +35,7 @@ class SpikeBasicBlock(SpikeModule):
                     SpikePool(basic_block.downsample[0], step=step),
                     myBatchNorm3d(basic_block.downsample[1], step=step)
                 )
-        self.output_act = LIFAct(step, basic_block.bn2.num_features, dim=dim)
+        self.output_act = LIFAct(step, basic_block.bn2.num_features, dim=dim, update=update)
         # copying all attributes in original block
         self.stride = basic_block.stride
 

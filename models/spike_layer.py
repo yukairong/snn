@@ -76,18 +76,18 @@ class LIFUpdate(SpikeModule):
         self.num_features = num_features
 
         # Initialize parameters
-        self.decay = nn.Parameter(torch.ones(2, 1))
+        self.decay = nn.Parameter(torch.randn(2, 1))
 
         self.register_parameter('update_params', self.decay)
 
     def forward(self, x):
-        return torch.matmul(x, self.decay)
+        return torch.matmul(x, torch.tanh(self.decay))
 
 class LIFAct(SpikeModule):
     """ Generates spikes based on LIF module. It can be considered as an activation function and is used similar to ReLU. The input tensor needs to have an additional time dimension, which in this case is on the last dimension of the data.
     """
 
-    def __init__(self, step, channel, dim):
+    def __init__(self, step, channel, dim, update):
         super(LIFAct, self).__init__()
         self.step = step
         # self.V_th = nn.Parameter(torch.tensor(1.))
@@ -100,7 +100,7 @@ class LIFAct(SpikeModule):
         self.bn = nn.BatchNorm2d(channel)
         self.out_dim = dim
         self.ln = nn.LayerNorm([channel, dim, dim])
-        self.update = LIFUpdate()
+        self.update = update
         # nn.init.constant_(self.bn.weight, 1)
         # nn.init.constant_(self.bn.bias, 0.5)
 

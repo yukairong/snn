@@ -1,16 +1,17 @@
 import torch.nn as nn
-from models.spike_layer import SpikeConv, LIFAct, tdBatchNorm2d, SpikePool, SpikeModule, myBatchNorm3d, myNone
+from models.spike_layer import SpikeConv, LIFAct, tdBatchNorm2d, SpikePool, SpikeModule, myBatchNorm3d, myNone, LIFUpdate
 from models.spike_block import specials
 
 
 class SpikeModel(SpikeModule):
 
-    def __init__(self, model: nn.Module, step=2):
+    def __init__(self, model: nn.Module, step=2, update=None):
         super().__init__()
         self.model = model
         self.step = step
         self.channel = 0
         self.out_dim = 32
+        self.update = update
         self.spike_module_refactor(self.model, step=step)
 
     def spike_module_refactor(self, module: nn.Module, step=2):
@@ -19,7 +20,7 @@ class SpikeModel(SpikeModule):
         """
         for name, child_module in module.named_children():
             if type(child_module) in specials:
-                setattr(module, name, specials[type(child_module)](child_module, step=step, dim=self.out_dim))
+                setattr(module, name, specials[type(child_module)](child_module, step=step, dim=self.out_dim, update=self.update))
 
             elif isinstance(child_module, nn.Sequential):
                 self.spike_module_refactor(child_module, step=step)
@@ -32,7 +33,7 @@ class SpikeModel(SpikeModule):
                 self.out_dim = self.out_dim // 2
 
             elif isinstance(child_module, (nn.ReLU, nn.ReLU6)):
-                setattr(module, name, LIFAct(step=step, channel=self.channel, dim=self.out_dim))
+                setattr(module, name, LIFAct(step=step, channel=self.channel, dim=self.out_dim, update=self.update))
 
             elif isinstance(child_module, nn.Conv2d):
                 setattr(module, name, SpikePool(child_module, step=step))
