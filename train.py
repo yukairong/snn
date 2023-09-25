@@ -180,6 +180,7 @@ if __name__ == '__main__':
                 print('Time elapsed: {}'.format(time.time() - start_time))
                 writer.add_scalar('Train Loss /batchidx', loss, i + len(train_loader) * epoch)
         scheduler.step()
+        print('Loss: {}'.format(running_loss / len(train_loader)))
         writer.add_scalar('Train Loss /epoch', running_loss / len(train_loader), epoch)
 
         correct = torch.Tensor([0.]).to(device)
